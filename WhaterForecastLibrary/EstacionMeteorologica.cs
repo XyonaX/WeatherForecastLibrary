@@ -5,7 +5,7 @@ namespace WeatherForecastLibrary
 {
     public class EstacionMeteorologica
     {
-        private RegistroTemperatura[,] registros;
+        private List<RegistroTemperatura>[,] registros;
         private int semanas;
         private int dias;
         private List<Persona> personal;
@@ -15,10 +15,19 @@ namespace WeatherForecastLibrary
         {
             this.semanas = semanas;
             this.dias = dias;
-            this.registros = new RegistroTemperatura[semanas, dias];
-            this.turnoIndex = 0;  // Índice de turno para alternar entre pasantes y profesionales
+            this.registros = new List<RegistroTemperatura>[semanas, dias];
+            this.turnoIndex = 0;
 
-            // Inicializa la lista de personal
+            // inicializar cada celda de la matriz de registros como una lista vacia
+            for (int i = 0; i < semanas; i++)
+            {
+                for (int j = 0; j < dias; j++)
+                {
+                    registros[i, j] = new List<RegistroTemperatura>();
+                }
+            }
+
+            // inicializar la lista de personal
             this.personal = new List<Persona>
             {
                 new Pasante("Mario", 101),
@@ -29,16 +38,17 @@ namespace WeatherForecastLibrary
                 new Profesional("Laura", 203)
             };
 
-            // Carga de temperaturas automática con personas intercaladas
-            CargarTemperaturasAutomatica();
+            // carga de temperaturas automatica
+            //CargarTemperaturasAutomatica();
         }
 
         public void RegistrarTemperatura(RegistroTemperatura registro, int semana, int dia)
         {
             if (semana < semanas && dia < dias)
             {
-                registros[semana, dia] = registro;
-                // Actualiza el índice para el próximo turno
+                // añadir el registro a la lista de ese día
+                registros[semana, dia].Add(registro);
+                // actualizar el indice de turno
                 turnoIndex = (turnoIndex + 1) % personal.Count;
             }
             else
@@ -47,9 +57,9 @@ namespace WeatherForecastLibrary
             }
         }
 
-        public List<double> VerTemperaturas(string tipo = "todas")
+        public List<List<double>> VerTemperaturas(string tipo = "todas")
         {
-            List<double> temperaturas = new List<double>();
+            List<List<double>> temperaturasPorDia = new List<List<double>>();
 
             switch (tipo.ToLower())
             {
@@ -58,8 +68,12 @@ namespace WeatherForecastLibrary
                     {
                         for (int j = 0; j < dias; j++)
                         {
-                            if (registros[i, j] != null)
-                                temperaturas.Add(registros[i, j].obtenerTemperatura());
+                            List<double> temperaturas = new List<double>();
+                            foreach (var registro in registros[i, j])
+                            {
+                                temperaturas.Add(registro.ObtenerTemperatura());
+                            }
+                            temperaturasPorDia.Add(temperaturas);
                         }
                     }
                     break;
@@ -72,7 +86,7 @@ namespace WeatherForecastLibrary
                         var tempFecha = VerTempPorFecha(fechaIngresada);
                         foreach (var temp in tempFecha)
                         {
-                            temperaturas.Add(temp.obtenerTemperatura());
+                            temperaturasPorDia.Add(new List<double> { temp.ObtenerTemperatura() });
                         }
                     }
                     else
@@ -86,47 +100,33 @@ namespace WeatherForecastLibrary
                     break;
             }
 
-            return temperaturas;
+            return temperaturasPorDia;
         }
 
-        private void CargarTemperaturasAutomatica()
+        public void CargarTemperaturasAutomatica()
         {
             DateTime diaInicio = new DateTime(2024, 8, 1);
-            int diasCount = 0; // Contador para asegurar que no se cargue más de 31 días
+            int diasCount = 0;
 
             for (int i = 0; i < semanas && diasCount < 31; i++)
             {
                 for (int j = 0; j < dias && diasCount < 31; j++)
                 {
-                    // Alterna entre pasantes y profesionales
-                    Persona persona = personal[turnoIndex];
-                    Random rand = new Random();
-                    double temp = Math.Round(-5 + rand.NextDouble() * 40, 1);
-
-                    RegistroTemperatura registro = new RegistroTemperatura(
-                        temp,  // Temperatura ficticia para demostración
-                        persona,
-                        diaInicio.AddDays(diasCount)
-                    );
-
-                    RegistrarTemperatura(registro, i, j);
-                    diasCount++;
-                }
-            }
-        }
-
-        public void CargarTemperaturasManual()
-        {
-            for (int i = 0; i < semanas; i++)
-            {
-                for (int j = 0; j < dias; j++)
-                {
-                    Console.Write($"Ingrese la temperatura para la semana {i + 1}, día {j + 1}: ");
-                    if (double.TryParse(Console.ReadLine(), out double temp))
+                    for (int t = 0; t < 3; t++)  // registrar hasta 3 temperaturas por día
                     {
-                        Persona personaDeTurno = ObtenerPersonaDeTurno();
-                        registros[i, j] = new RegistroTemperatura(temp, personaDeTurno, DateTime.Now);
+                        Persona persona = personal[turnoIndex];
+                        Random rand = new Random();
+                        double temp = Math.Round(-5 + rand.NextDouble() * 40, 1);
+
+                        RegistroTemperatura registro = new RegistroTemperatura(
+                            temp,
+                            persona,
+                            diaInicio.AddDays(diasCount)
+                        );
+
+                        RegistrarTemperatura(registro, i, j);
                     }
+                    diasCount++;
                 }
             }
         }
@@ -139,9 +139,12 @@ namespace WeatherForecastLibrary
             {
                 for (int j = 0; j < dias; j++)
                 {
-                    if (registros[i, j] != null && registros[i, j].ObtenerFechaRegistro().Date == fecha.Date)
+                    foreach (var registro in registros[i, j])
                     {
-                        registrosEnFecha.Add(registros[i, j]);
+                        if (registro.ObtenerFechaRegistro().Date == fecha.Date)
+                        {
+                            registrosEnFecha.Add(registro);
+                        }
                     }
                 }
             }
@@ -151,16 +154,20 @@ namespace WeatherForecastLibrary
 
         public Persona ObtenerPersonaDeTurno()
         {
-            // Devuelve la persona según el índice del turno
             Persona persona = personal[turnoIndex];
             return persona;
         }
 
-        public double VerTemperaturaDiaEspecifico(int semana, int dia)
+        public List<double> VerTemperaturaDiaEspecifico(int semana, int dia)
         {
-            if (semana < semanas && dia < dias && registros[semana, dia] != null)
+            if (semana < semanas && dia < dias)
             {
-                return registros[semana, dia].obtenerTemperatura();
+                List<double> temperaturas = new List<double>();
+                foreach (var registro in registros[semana, dia])
+                {
+                    temperaturas.Add(registro.ObtenerTemperatura());
+                }
+                return temperaturas;
             }
             else
             {
