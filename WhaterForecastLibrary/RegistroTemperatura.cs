@@ -19,7 +19,7 @@ namespace WeatherForecastLibrary
             FechaRegistro = fechaRegistro;
         }
 
-        public double obtenerTemperatura()
+        public double ObtenerTemperatura()
         {
             return Temperatura; 
         }
